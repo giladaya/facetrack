@@ -1,0 +1,15 @@
+{
+  "name": "ManEater",
+  "short_name": "Man Eater",
+  "start_url": "index.html",
+  "display": "standalone",
+  "orientation": "landscape",
+  "permissions": {
+    "audio-capture": {
+      "description": "Required to capture audio using getUserMedia()"
+    },
+    "video-capture": {
+      "description": "Required to capture video using getUserMedia()"
+    }
+  }
+}
