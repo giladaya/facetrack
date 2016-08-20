@@ -9,7 +9,7 @@
   var classifiers = [
         jsfeat.haar.frontalface,
         jsfeat.haar.profileface,
-    ]
+    ];
     // var classifier = jsfeat.haar.frontalface;
 
   var max_work_size = 160;
@@ -28,9 +28,7 @@
   var lastDetectTime;
   var startTime = Date.now();
   var frames = 0;
-  var score = 0;
-  var faces = [],
-    oldFaces = [];
+  var faces = [];
   var point_attr; //point to face lookup
 
   // lets do some fun
@@ -44,7 +42,7 @@
         initVideo();
         screen.orientation.onchange = null;
       }
-    }
+    };
   } else {
     initVideo();
   }
@@ -161,8 +159,7 @@
       cx: cx,
       cy: cy
     });
-  }
-
+  };
 
   var demo_opt = function() {
     //detector
@@ -186,7 +183,7 @@
     this.detects_interval = 1000; //time in millis between detection (in that interval tracking is used on existing faces)
     this.points_per_face = 20;
     this.show_track_pts = false;
-  }
+  };
 
   function startApp(videoWidth, videoHeight) {
     if (window.innerHeight > window.innerWidth) {
@@ -226,7 +223,7 @@
     f1.add(options, 'scale_factor', 1.1, 2).step(0.025);
     f1.add(options, 'equalize_histogram');
     f1.add(options, 'use_canny');
-    f1.add(options, 'edges_density', 0.01, 1.).step(0.005);
+    f1.add(options, 'edges_density', 0.01, 1.0).step(0.005);
     // f1.open();
 
     stat.add("detector");
@@ -306,18 +303,18 @@
     }
 
     jsfeat.haar.edges_density = options.edges_density;
-    var rects = []
+    var rects = [];
     for (var i = 0; i < classifiers.length; i++) {
       rects = rects.concat(jsfeat.haar.detect_multi_scale(ii_sum, ii_sqsum,
         ii_tilted, options.use_canny ? ii_canny : null, img_u8.cols,
         img_u8.rows, classifiers[i], options.scale_factor, options.min_scale
       ));
-    };
+    }
     rects = jsfeat.haar.group_rectangles(rects, 1);
     if (rects.length > 0) {
       jsfeat.math.qsort(rects, 0, rects.length - 1, function(a, b) {
         return (b.confidence < a.confidence);
-      })
+      });
     }
 
     //scale all points
@@ -367,6 +364,9 @@
     return rects;
   }
 
+  /**
+   * Randomly pick points to track around the center of each face
+   */
   function findCorners_randCirc(faces, scale) {
     point_count = 0;
 
@@ -374,7 +374,7 @@
       var face = faces[i];
 
       for (var j = 0; j < options.points_per_face; j++) {
-        var r = Math.random() * Math.min(face.coords.w, face.coords.h) * 0.45;
+        var r = Math.random() * Math.min(face.coords.w, face.coords.h) * 0.4;
         var th = Math.random() * 2 * Math.PI;
 
         curr_xy[point_count << 1] = ~~(r * Math.cos(th) + face.coords.cx) *
@@ -384,37 +384,11 @@
         point_attr[point_count] = i;
         face.points.push(point_count);
         point_count++;
-      };
-    };
+      }
+    }
   }
 
-  /**
-   * ain't workin
-   */
-  function findCorners_yape60() {
-    //assume clean frame was drawn to canvas
-    var imageData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
-
-    jsfeat.imgproc.grayscale(imageData.data, canvasWidth, canvasHeight,
-      corners_img_u8);
-
-    jsfeat.imgproc.box_blur_gray(corners_img_u8, corners_img_u8, 2, 0);
-
-    jsfeat.yape06.laplacian_threshold = options.lap_thres | 0;
-    jsfeat.yape06.min_eigen_value_threshold = options.eigen_thres | 0;
-
-    var count = jsfeat.yape06.detect(corners_img_u8, corners);
-
-    //copy to points array for tracking
-    for (point_count = 0; point_count < count; point_count++) {
-      curr_xy[point_count << 1] = corners[point_count].x;
-      curr_xy[(point_count << 1) + 1] = corners[point_count].y;
-    };
-    point_count++;
-
-    return count;
-  }
-
+ 
   /**
    * track all tracking points using LK optical flow algorithm
    */
@@ -462,7 +436,7 @@
 
     for (i = 0; i < point_count; i++) {
       faces[point_attr[i]].points.push(i);
-    };
+    }
   }
 
   /**
@@ -483,7 +457,7 @@
       for (var i = faces.length - 1; i >= 0; i--) {
         faces[i].is_stale = true;
         // faces[i].ttl = 0;
-      };
+      }
 
       for (var i = 0; i < newRects.length; i++) {
         newRects[i].found = false;
@@ -524,7 +498,7 @@
         y: newRects[rectIdx].y,
         w: newRects[rectIdx].width,
         h: newRects[rectIdx].height
-      }
+      };
       rect.cx = rect.x + rect.w/2;
       rect.cy = rect.y + rect.h/2;
 
@@ -545,10 +519,10 @@
     //prune stale faces
     for (var i = faces.length - 1; i >= 0; i--) {
       faces[i].ttl--; 
-    };
+    }
     faces = faces.filter(function(face){
       return face.ttl > 0;
-    })
+    });
 
     //add new faces
     faces = faces.concat(newFaces);
@@ -557,7 +531,7 @@
   /**
    * Match existing faces to new detections using munk-res algorithm ( https://github.com/addaleax/munkres-js )
    */
-  function updateFaces_detect_(newRects) {
+  function updateFaces_detect_munkres(newRects) {
     var newFaces = [];
 
     /**
@@ -586,7 +560,7 @@
     for (var i = faces.length - 1; i >= 0; i--) {
       faces[i].is_stale = true;
       // faces[i].ttl = 0;
-    };
+    }
 
     for (var i = 0; i < newRects.length; i++) {
       newRects[i].found = false;
@@ -600,7 +574,7 @@
         y: newRects[rectIdx].y,
         w: newRects[rectIdx].width,
         h: newRects[rectIdx].height
-      }
+      };
       rect.cx = rect.x + rect.w/2;
       rect.cy = rect.y + rect.h/2;
 
@@ -621,56 +595,37 @@
     //prune stale faces
     for (var i = faces.length - 1; i >= 0; i--) {
       faces[i].ttl--; 
-    };
+    }
     faces = faces.filter(function(face){
       return face.ttl > 0;
-    })
+    });
 
     //add new faces
     faces = faces.concat(newFaces);
   }
 
-  function updateFaces() {
+  /**
+   * Update location of tracked faces according to optical flow results
+   */
+  function updateFaces_track() {
     for (var i = 0; i < faces.length; i++) {
       var face = faces[i];
-      var dx = 0;
-      var dy = 0;
+      if (face.points.length === 0) continue;
 
-      if (face.points.length == 0) continue;
-
-      var old_cx = 0,
-        old_cy = 0,
-        new_cx = 0,
-        new_cy = 0;
+      var new_cx = 0,
+          new_cy = 0;
 
       for (var j = 0; j < face.points.length; j++) {
         var idx = face.points[j];
-        // old_cx += prev_xy[idx<<1];
         new_cx += curr_xy[idx << 1];
-        // old_cy += prev_xy[(idx<<1)+1];
         new_cy += curr_xy[(idx << 1) + 1];
-      };
+      }
 
-      // old_cx /= face.points.length;
-      // old_cy /= face.points.length;
       new_cx /= face.points.length;
       new_cy /= face.points.length;
-      // dx = new_cx - old_cx;
-      // dy = new_cy - old_cy;
 
-      face.old_coords = face.coords;
-      face.coords = Object.assign({}, face.coords, {
-        x: new_cx - face.coords.w / 2,
-        y: new_cy - face.coords.h / 2,
-        cx: new_cx,
-        cy: new_cy
-      });
-
-      // face.coords.x = new_cx - face.coords.w/2;
-      // face.coords.y = new_cy - face.coords.h/2;
-      // face.coords.cx = new_cx;
-      // face.coords.cy = new_cy;
-    };
+      face.setCoords(new_cx - face.coords.w / 2, new_cy - face.coords.h / 2);
+    }
   }
 
   var mode = 'detect';
@@ -694,14 +649,6 @@
 
         updateFaces_detect(rects);
 
-        //update faces
-        // oldFaces = faces;
-        // faces = [];
-        // for (var i = 0; i < rects.length; i++) {
-        //   var newFace = new Face(rects[i].x, rects[i].y, rects[i].width, rects[i].height);
-        //   faces.push(newFace);
-        // };
-
         //find interest points
         stat.start("find points");
         // findCorners_yape60();
@@ -710,7 +657,6 @@
 
         mode = 'track';
       } else if (mode == 'track') {
-        // if (frames >= FRAMES_BETWEEN_DETECTS){
         if ((Date.now() - lastDetectTime) >= options.detects_interval) {
           frames = 0;
           mode = 'detect';
@@ -720,7 +666,7 @@
         stat.start("optical flow lk");
         track();
         stat.stop("optical flow lk");
-        updateFaces(rects);
+        updateFaces_track();
       } else {
         //do nothing
       }
@@ -737,6 +683,9 @@
     $('#log').html(stat.log());
   }
 
+  /**
+   * Draw all tracking points
+   */
   function draw_points(ctx, points, count) {
     ctx.fillStyle = "rgb(0, 255, 0)";
     for (var i = 0; i < count; i++) {
@@ -746,15 +695,15 @@
       ctx.arc(x, y, 3, 0, Math.PI * 2, true);
       ctx.closePath();
       ctx.fill();
-    };
+    }
   }
 
+  /**
+   * Draw location and size of deteted faces - this updates each interval
+   */
   function draw_faces_detect(ctx, rects, sc, max) {
     ctx.strokeStyle = "rgb(0, 255, 0)";
     var on = rects.length;
-    // if(on && max) {
-    //     jsfeat.math.qsort(rects, 0, on-1, function(a,b){return (b.confidence<a.confidence);})
-    // }
     var n = max || on;
     n = Math.min(n, on);
     var r;
@@ -771,7 +720,7 @@
 
 
   /**
-   *
+   * Draw location and size of tracked faces
    * @param ctx canvas context to draw on
    * @param faces array of Face objects to draw
    * @param sc scale factor from working canvas to output canvas
@@ -792,14 +741,6 @@
     for (var i = 0; i < n; ++i) {
       face = faces[i];
 
-      // Rescale coordinates from detector to video coordinate space:
-      // var x = face.cx * video.videoWidth / canvasWidth;
-      // var y = face.cy * video.videoHeight / canvasHeight;
-
-      var size = 30;
-
-      var cx = face.coords.cx * sc;
-      var cy = face.coords.cy * sc;
       var rad = Math.min(face.coords.w, face.coords.h) / 2;
 
       ctx.beginPath();
