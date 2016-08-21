@@ -1,4 +1,4 @@
-(function($, compatibility, profiler, jsfeat, dat, Munkres) {
+(function($, compatibility, profiler, jsfeat, dat) {
   "use strict";
 
   var stat = new profiler();
@@ -19,10 +19,12 @@
   var curr_img_pyr, prev_img_pyr, point_count, point_status, prev_xy, curr_xy;
 
   var FRAMES_BETWEEN_DETECTS = 50;
+  var SHIFT_THRESH2 = 10000; //max horizontal distance between faces to be considered same
   var SHIFT_THRESH_X = 30; //max horizontal distance between faces to be considered same
   var SHIFT_THRESH_Y = 20; //max vertical distance between faces to be considered same
   var MAX_POINTS = 500;
-  var MAX_TTL = 8; //max frames for a face not re-detected to be considered gone
+  var MIN_TTL = 1; //min detect cycles for a face not re-detected to be considered gone
+  var MAX_TTL = 10; //max detect cycles for a face not re-detected to be considered gone
 
   var lastDetectTime;
   var startTime = Date.now();
@@ -138,8 +140,9 @@
     this.coords = coords;
     this.old_coords = coords;
     this.id = Math.ceil(Math.random() * 10000);
-    this.ttl = MAX_TTL;
-    this.is_stale = false;
+    this.ttl = MIN_TTL;
+    this.age = 0; //age in detection cycles
+    this.is_match = false;
     this.is_live = true;
     this.points = [];
   }
@@ -437,7 +440,7 @@
   }
 
   /**
-   * Match existing faces to new detections using min-square search
+   * Match existing faces to new detections using min-distance search
    */
   function updateFaces_detect(newRects) {
     var newFaces = [];
@@ -449,47 +452,72 @@
       return (x1-x2) * (x1-x2) + (y1 - y2) * (y1 - y2);
     }
 
+    //update age and ttl for all existing faces
+    faces.forEach(function(face, idx, array) {
+      face.ttl--;
+      face.age++;
+    });
+
     var indices = [];
     if (newRects.length > 0 && faces.length > 0) {
-      for (var i = faces.length - 1; i >= 0; i--) {
-        faces[i].is_stale = true;
-        // faces[i].ttl = 0;
-      }
+      //mark all faces and all rects as unmatched
+      faces.forEach(function(face, idx, array) {
+        face.is_match = false;
+      });
+      newRects.forEach(function(rect, idx, array) {
+        rect.is_match = false;
+      });
 
-      for (var i = 0; i < newRects.length; i++) {
-        newRects[i].found = false;
-      }
-
+      //calculate distances matrix
       var distMatrix = [];
-      for (var i = 0; i < newRects.length; i++) {
-        for (var j = 0; j < faces.length; j++) {
-          var cx = newRects[i].x + newRects[i].width/2;
-          var cy = newRects[i].y + newRects[i].height/2;
+      // for (var i = 0; i < newRects.length; i++) {
+      //   for (var j = 0; j < faces.length; j++) {
+      //     var cx = newRects[i].x + newRects[i].width/2;
+      //     var cy = newRects[i].y + newRects[i].height/2;
+      //     distMatrix.push({
+      //       r: i,
+      //       f: j,
+      //       d: dist2(cx, cy, faces[j].coords.cx, faces[j].coords.cy)
+      //     });
+      //   }
+      // }
+      newRects.forEach (function(rect, i){
+        faces.forEach(function(face, j){
+          var cx = rect.x + rect.width/2;
+          var cy = rect.y + rect.height/2;
           distMatrix.push({
             r: i,
             f: j,
-            d: dist2(cx, cy, faces[j].coords.cx, faces[j].coords.cy)
+            d: dist2(cx, cy, face.coords.cx, face.coords.cy)
           });
-        }
-      }
+        });
+      });
 
-      //sort
+
+      //sort distances
       distMatrix.sort(function(a, b) {
         return a.d - b.d;
       });
+
+      //find matches
       for (var i = 0; i < distMatrix.length; i++){
-        //if both face and rect are free we have a match
-        if (faces[distMatrix[i].f].is_stale && !newRects[distMatrix[i].r].found){
+        if (distMatrix[i].d > SHIFT_THRESH2) {
+          //distances from here on are larger than the threshold
+          break;
+        }
+        //if both face and rect are unmatched we have a match
+        if (!faces[distMatrix[i].f].is_match && !newRects[distMatrix[i].r].is_match){
           indices.push([distMatrix[i].r, distMatrix[i].f]);
-          faces[distMatrix[i].f].is_stale = false;
-          newRects[distMatrix[i].r].found = true;
+          faces[distMatrix[i].f].is_match = true;
+          newRects[distMatrix[i].r].is_match = true;
         }
       }
     }
 
-    for (var i = 0; i < indices.length; i++) {
-      var rectIdx = indices[i][0];
-      newRects[rectIdx].found = true;
+    //update matched faces with new bounding box
+    indices.forEach(function(el, idx, array) {
+      var rectIdx = el[0];
+      newRects[rectIdx].is_match = true;
       var rect = {
         x: newRects[rectIdx].x,
         y: newRects[rectIdx].y,
@@ -499,103 +527,25 @@
       rect.cx = rect.x + rect.w/2;
       rect.cy = rect.y + rect.h/2;
 
-      var matchFace = faces[indices[i][1]];
+      var matchFace = faces[el[1]];
       matchFace.setCoords(rect.x, rect.y, rect.w, rect.h);
-      matchFace.is_stale = false;
-      matchFace.ttl = MAX_TTL;
-    }
+      matchFace.ttl = Math.max(Math.min(matchFace.age, MAX_TTL), MIN_TTL);
+    });
 
-    if (newRects.length > faces.length) {
-      for (var i = 0; i < newRects.length; i++) {
-        if (! newRects[i].found){
-          newFaces.push(new Face(newRects[i].x, newRects[i].y, newRects[i].width, newRects[i].height));
+    //add unmatched faces
+    // if (newRects.length > faces.length) {
+      newRects.forEach(function(rect, idx, array) {
+        if (! rect.is_match){
+          newFaces.push(new Face(rect.x, rect.y, rect.width, rect.height));
         }
-      }
-    }
+      });
+    // }
 
     //prune stale faces
-    for (var i = faces.length - 1; i >= 0; i--) {
-      faces[i].ttl--; 
-    }
     faces = faces.filter(function(face){
       return face.ttl > 0;
     });
 
-    //add new faces
-    faces = faces.concat(newFaces);
-  }
-
-  /**
-   * Match existing faces to new detections using munk-res algorithm ( https://github.com/addaleax/munkres-js )
-   */
-  function updateFaces_detect_munkres(newRects) {
-    var newFaces = [];
-
-    /**
-     * calculate square distance between 2 points
-     */
-    function dist2(x1, y1, x2, y2) {
-      return (x1-x2) * (x1-x2) + (y1 - y2) * (y1 - y2);
-    }
-
-    var indices = [];
-    if (newRects.length > 0 && faces.length > 0) {
-      var distMatrix = [];
-      for (var i = 0; i < newRects.length; i++) {
-        distMatrix[i] = [];
-        for (var j = 0; j < faces.length; j++) {
-          var cx = newRects[i].x + newRects[i].width/2;
-          var cy = newRects[i].y + newRects[i].height/2;
-          distMatrix[i][j] = dist2(cx, cy, faces[j].coords.cx, faces[j].coords.cy);
-        }
-      }
-
-      var m = new Munkres();
-      indices = m.compute(distMatrix);
-    }
-
-    for (var i = faces.length - 1; i >= 0; i--) {
-      faces[i].is_stale = true;
-      // faces[i].ttl = 0;
-    }
-
-    for (var i = 0; i < newRects.length; i++) {
-      newRects[i].found = false;
-    }
-
-    for (var i = 0; i < indices.length; i++) {
-      var rectIdx = indices[i][0];
-      newRects[rectIdx].found = true;
-      var rect = {
-        x: newRects[rectIdx].x,
-        y: newRects[rectIdx].y,
-        w: newRects[rectIdx].width,
-        h: newRects[rectIdx].height
-      };
-      rect.cx = rect.x + rect.w/2;
-      rect.cy = rect.y + rect.h/2;
-
-      var matchFace = faces[indices[i][1]];
-      matchFace.setCoords(rect.x, rect.y, rect.w, rect.h);
-      matchFace.is_stale = false;
-      matchFace.ttl = MAX_TTL;
-    }
-
-    if (newRects.length > faces.length) {
-      for (var i = 0; i < newRects.length; i++) {
-        if (! newRects[i].found){
-          newFaces.push(new Face(newRects[i].x, newRects[i].y, newRects[i].width, newRects[i].height));
-        }
-      }
-    }
-
-    //prune stale faces
-    for (var i = faces.length - 1; i >= 0; i--) {
-      faces[i].ttl--; 
-    }
-    faces = faces.filter(function(face){
-      return face.ttl > 0;
-    });
 
     //add new faces
     faces = faces.concat(newFaces);
@@ -737,6 +687,9 @@
     var face;
     for (var i = 0; i < n; ++i) {
       face = faces[i];
+      if (face.age < 1) {
+        //continue;
+      }
 
       var rad = Math.min(face.coords.w, face.coords.h) / 2;
 
@@ -761,4 +714,4 @@
     video.pause();
     video.src = null;
   });
-})($, compatibility, profiler, jsfeat, dat, Munkres);
+})($, compatibility, profiler, jsfeat, dat);
