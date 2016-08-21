@@ -3,7 +3,7 @@ This is a demo for detecting and tracking multiple faces in real time.
 It uses the [jsfeat](https://inspirit.github.io/jsfeat/) CV library for the detection and the tracking.
 
 
-[Live Demo](https://giladaya.github.com/facetrack/)
+[Live Demo](https://giladaya.github.io/facetrack/)
 
 
 ## How it works
