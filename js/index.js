@@ -1,14 +1,13 @@
-(function($, compatibility, profiler, jsfeat, dat) {
+(function($, compatibility, profiler, jsfeat, dat, Munkres) {
   "use strict";
 
   var stat = new profiler();
 
   var gui, options, ctx, canvasWidth, canvasHeight;
-  var img_u8, work_canvas, work_ctx, ii_sum, ii_sqsum, ii_tilted, edg,
-    ii_canny;
+  var img_u8, work_canvas, work_ctx, ii_sum, ii_sqsum, ii_tilted, edg, ii_canny;
   var classifiers = [
         jsfeat.haar.frontalface,
-        jsfeat.haar.profileface,
+        // jsfeat.haar.profileface,
     ];
     // var classifier = jsfeat.haar.frontalface;
 
@@ -170,8 +169,8 @@
     this.edges_density = 0.13;
 
     //points
-    this.lap_thres = 10;
-    this.eigen_thres = 10;
+    this.points_per_face = 20;
+    this.show_track_pts = false;
 
     //tracker
     this.win_size = 20;
@@ -180,9 +179,8 @@
     this.min_eigen = 0.001;
 
     //misc
+    this.detector = 'BBF';
     this.detects_interval = 1000; //time in millis between detection (in that interval tracking is used on existing faces)
-    this.points_per_face = 20;
-    this.show_track_pts = false;
   };
 
   function startApp(videoWidth, videoHeight) {
@@ -237,10 +235,10 @@
       corners[i] = new jsfeat.keypoint_t(0, 0, 0, 0);
     }
 
-    var f2 = gui.addFolder('YAPE06');
-    f2.add(options, "lap_thres", 1, 100);
-    f2.add(options, "eigen_thres", 1, 100);
-    // f2.open();
+    var f2 = gui.addFolder('POINTS');
+    f2.add(options, 'points_per_face', 5, 50).step(5);
+    f2.add(options, 'show_track_pts', false);
+    f2.open();
 
     stat.add("find points");
 
@@ -267,8 +265,7 @@
 
     var f4 = gui.addFolder('misc');
     f4.add(options, 'detects_interval', 0, 10000).step(100);
-    f4.add(options, 'points_per_face', 5, 50).step(5);
-    f4.add(options, 'show_track_pts', false);
+    f4.add(options, 'detector', ['BBF', 'HAAR']);
     f4.open();
 
     //init bbf detector
@@ -374,7 +371,7 @@
       var face = faces[i];
 
       for (var j = 0; j < options.points_per_face; j++) {
-        var r = Math.random() * Math.min(face.coords.w, face.coords.h) * 0.4;
+        var r = Math.random() * Math.min(face.coords.w, face.coords.h) * 0.35;
         var th = Math.random() * 2 * Math.PI;
 
         curr_xy[point_count << 1] = ~~(r * Math.cos(th) + face.coords.cx) *
@@ -642,8 +639,11 @@
 
       if (mode == 'detect') {
         stat.start("detector");
-        // rects = detect_haar();
-        rects = detect_bbf();
+        if (options.detector == 'HAAR') {
+          rects = detect_haar();
+        } else {
+          rects = detect_bbf();
+        }
         stat.stop("detector");
         lastDetectTime = Date.now();
 
@@ -651,7 +651,6 @@
 
         //find interest points
         stat.start("find points");
-        // findCorners_yape60();
         findCorners_randCirc(faces, scale);
         stat.stop("find points");
 
@@ -702,6 +701,7 @@
    * Draw location and size of deteted faces - this updates each interval
    */
   function draw_faces_detect(ctx, rects, sc, max) {
+    ctx.lineWidth = 1;
     ctx.strokeStyle = "rgb(0, 255, 0)";
     var on = rects.length;
     var n = max || on;
@@ -709,10 +709,6 @@
     var r;
     for (var i = 0; i < n; ++i) {
       r = rects[i];
-      var size = 6;
-      var x = (r.x * sc + r.width * sc * 0.5 - size * 0.5) | 0;
-      var y = (r.y * sc + r.height * sc * 0.5 - size * 0.5) | 0;
-      ctx.fillRect(x, y, size, size);
       ctx.strokeRect((r.x * sc) | 0, (r.y * sc) | 0, (r.width * sc) | 0, (r
         .height * sc) | 0);
     }
@@ -729,6 +725,7 @@
   function draw_faces_track(ctx, faces, sc, max) {
     ctx.fillStyle = "rgb(0,255,128)";
     ctx.strokeStyle = "rgb(0,255,128)";
+    ctx.lineWidth = 3;
 
 
     var on = faces.length;
@@ -743,10 +740,15 @@
 
       var rad = Math.min(face.coords.w, face.coords.h) / 2;
 
+      ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.arc(face.coords.cx, face.coords.cy, rad, 0, 2 * Math.PI, true);
+      ctx.arc(face.coords.cx, face.coords.cy, rad, 0, 2 * Math.PI, false);
       ctx.stroke();
-      // ctx.strokeRect(face.coords.x, face.coords.y, face.coords.w, face.coords.h);
+
+      ctx.lineWidth = 4;      
+      ctx.beginPath();
+      ctx.arc(face.coords.cx, face.coords.cy, rad, 0, (face.ttl / (MAX_TTL-1)) * 2 * Math.PI, false);
+      ctx.stroke();
 
       ctx.font = "24px Verdana";
       ctx.fillStyle = "rgb(255,255,255)";
@@ -759,4 +761,4 @@
     video.pause();
     video.src = null;
   });
-})($, compatibility, profiler, jsfeat, dat);
+})($, compatibility, profiler, jsfeat, dat, Munkres);
