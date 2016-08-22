@@ -103,4 +103,9 @@ body {
   padding: 10px;
 }
 
-
+#log {
+  color: white;
+}
+#err {
+  color: red;
+}
