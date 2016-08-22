@@ -80,9 +80,7 @@
 
       compatibility.getUserMedia({
           video: {
-            facingMode: {
-              exact: 'user'
-            }
+            facingMode: 'user'
           }
         },
         onGumSuccess,
@@ -112,6 +110,7 @@
    */
   function onGumError(error) {
     notify('WebRTC not available.');
+    console.log(error);
   }
 
   /** 
