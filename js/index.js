@@ -81,7 +81,7 @@
       compatibility.getUserMedia({
           video: {
             facingMode: {
-              exact: 'environment'
+              exact: 'user'
             }
           }
         },
