@@ -12,3 +12,7 @@ It uses the [jsfeat](https://inspirit.github.io/jsfeat/) CV library for the dete
 - We then track these points in the video using an optical flow algorithm, until a specified time interval has passed.  
 - We then run the detection algorithm again and match the freshly detected faces to the existing ones using a minimum distance approach.  
 - If a face was not re-detected, we prune it after several detection cycles.
+
+## Compatibility
+This demo uses getUserMedia to access the camera feed.  
+It was tested on Chrome 52 (desktop and mobile) and Firefox 48 (the latest as of this writing)
