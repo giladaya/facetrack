@@ -14,5 +14,4 @@ It uses the [jsfeat](https://inspirit.github.io/jsfeat/) CV library for the dete
 - If a face was not re-detected, we prune it after several detection cycles.
 
 ## Compatibility
-This demo uses getUserMedia to access the camera feed.  
-It was tested on Chrome 52 (desktop and mobile) and Firefox 48 (the latest as of this writing)
+This demo uses getUserMedia to access the camera feed and should work on all browsers except IE.  
