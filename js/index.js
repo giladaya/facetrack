@@ -52,65 +52,28 @@
    * Initialize camera video stream
    */
   function initVideo() {
-    try {
-      var attempts = 0;
-      var readyListener = function(event) {
-        findVideoSize();
-      };
-      var findVideoSize = function() {
-        if (video.videoWidth > 0 && video.videoHeight > 0) {
-          video.removeEventListener('loadeddata', readyListener);
-          onDimensionsReady(video.videoWidth, video.videoHeight);
-        } else {
-          if (attempts < 10) {
-            attempts++;
-            setTimeout(findVideoSize, 200);
-          } else {
-            onDimensionsReady(640, 480);
-          }
-        }
-      };
-      var onDimensionsReady = function(width, height) {
-        //start the app
+    // Prefer camera resolution nearest to 1280x720.
+    // var constraints = { audio: true, video: { width: 1280, height: 720 } }; 
+    var constraints = { video: { facingMode: "user" } };
+
+    navigator.mediaDevices.getUserMedia(constraints)
+    .then(function(mediaStream) {
+      video.srcObject = mediaStream;
+      video.onloadedmetadata = function(e) {
+        console.log(e);
+        const video = e.srcElement;
+
+        video.play();
+        const width = video.videoWidth || 640;
+        const height = video.videoHeight || 480;
         startApp(width, height);
         compatibility.requestAnimationFrame(tick);
       };
-
-      video.addEventListener('loadeddata', readyListener);
-
-      compatibility.getUserMedia({
-          video: {
-            facingMode: 'user'
-          }
-        },
-        onGumSuccess,
-        onGumError);
-    } catch (error) {
-      console.log(error);
-      notify('Something went wrong...');
-    }
-  }
-
-  /** 
-   * getUserMedia callback
-   */
-  function onGumSuccess(stream) {
-    try {
-      video.src = compatibility.URL.createObjectURL(stream);
-    } catch (error) {
-      video.src = stream;
-    }
-    setTimeout(function() {
-      video.play();
-    }, 500);
-  }
-
-  /** 
-   * getUserMedia callback
-   */
-  function onGumError(error) {
-    notify('WebRTC not available.');
-    console.log(error);
+    })
+    .catch(function(err) { // always check for errors at the end.
+      notify('WebRTC not available.');
+      console.log(err.name + ": " + err.message); 
+    }); 
   }
 
   /** 
