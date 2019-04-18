@@ -1,4 +1,4 @@
-(function($, compatibility, profiler, jsfeat, dat) {
+(function(profiler, jsfeat, dat) {
   "use strict";
 
   var stat = new profiler();
@@ -67,7 +67,7 @@
         const width = video.videoWidth || 640;
         const height = video.videoHeight || 480;
         startApp(width, height);
-        compatibility.requestAnimationFrame(tick);
+        requestAnimationFrame(tick);
       };
     })
     .catch(function(err) { // always check for errors at the end.
@@ -80,8 +80,9 @@
    * Notify of an error
    */
   function notify(msg) {
-    $('#err').html(msg);
-    $('#err').show();
+    const $err = document.getElementById('err');
+    $err.innerHTML = msg;
+    $err.style.display = 'block'
   }
 
   /** 
@@ -541,7 +542,7 @@
   var rects = [];
 
   function tick() {
-    compatibility.requestAnimationFrame(tick);
+    requestAnimationFrame(tick);
     stat.new_frame();
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
 
@@ -591,7 +592,7 @@
 
       frames++;
     }
-    $('#log').html(stat.log());
+    document.getElementById('log').innerHTML = stat.log();
   }
 
   /**
@@ -667,13 +668,12 @@
 
       ctx.font = "24px Verdana";
       ctx.fillStyle = "rgb(255,255,255)";
-      ctx.fillText(face.id, face.coords.x, face.coords.y);
+      ctx.fillText(`ID: ${face.id}`, face.coords.x, face.coords.y);
     }
   }
 
-
-  $(window).unload(function() {
+  window.addEventListener("beforeunload", function(event) { 
     video.pause();
     video.src = null;
   });
-})($, compatibility, profiler, jsfeat, dat);
+})(profiler, jsfeat, dat);
